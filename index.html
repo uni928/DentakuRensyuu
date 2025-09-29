@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>電卓レクチャー・20問チャレンジ</title>
+<style>
+  :root{
+    --bg:#0f172a;        /* slate-900 */
+    --panel:#111827;     /* gray-900 */
+    --card:#1f2937;      /* gray-800 */
+    --muted:#94a3b8;     /* slate-400 */
+    --accent:#22c55e;    /* green-500 */
+    --accent-2:#3b82f6;  /* blue-500 */
+    --danger:#ef4444;    /* red-500 */
+    --warn:#f59e0b;      /* amber-500 */
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #1e293b 0%, #0b1220 60%, #070b14 100%);
+    color:#e5e7eb;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px; border-bottom:1px solid #334155; backdrop-filter: blur(4px);
+    position:sticky; top:0; background:rgba(2,6,23,.7);
+  }
+  header h1{ font-size: clamp(18px, 2.4vw, 24px); margin:0; letter-spacing:.03em; }
+  header .meta{ display:flex; gap:12px; align-items:center; font-size:14px; color: var(--muted); }
+  header .pill{ padding:4px 10px; border:1px solid #334155; border-radius:999px; }
+
+  main{ display:flex; gap:16px; padding:16px; max-width:1200px; margin:0 auto; }
+  .left, .right{ flex:1; min-width:0; }
+
+  .card{ background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+         border:1px solid #334155; border-radius:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+         padding:16px; }
+
+  .problem-area{ display:flex; flex-direction:column; gap:12px; }
+  .problem-text{ font-size: clamp(16px, 2.2vw, 20px); line-height:1.6; }
+  .hint{ color:var(--muted); font-size:14px; }
+
+  .progress{ display:flex; align-items:center; gap:8px; }
+  .bar{ flex:1; height:10px; background:#0b1220; border-radius:999px; border:1px solid #334155; overflow:hidden; }
+  .bar > span{ display:block; height:100%; background:linear-gradient(90deg, var(--accent), #16a34a); width:0%; transition: width .25s ease; }
+
+  .buttons{ display:flex; gap:8px; flex-wrap:wrap; }
+  button{ all:unset; }
+  .btn{ padding:10px 12px; border:1px solid #334155; border-radius:12px; cursor:pointer; user-select:none; background:#0b1220; }
+  .btn:active{ transform: translateY(1px); }
+  .btn.primary{ background: linear-gradient(180deg, #14532d, #064e3b); border-color:#14532d; color:#d1fae5; }
+  .btn.warn{ background: linear-gradient(180deg, #7c2d12, #78350f); border-color:#78350f; color:#fffbeb; }
+  .btn.ghost{ background:transparent; }
+
+  /* Calculator */
+  .calc{ display:grid; grid-template-rows:auto 1fr; gap:12px; }
+  .display{ background:#020617; border:1px solid #1f2937; border-radius:12px; padding:12px; text-align:right; }
+  .display .expr{ color:#64748b; font-size:14px; min-height:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .display .value{ font-size: clamp(24px, 4vw, 36px); letter-spacing:.03em; }
+
+  .keys{ display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; }
+  .key{ background:linear-gradient(180deg, #111827, #0b1220); border:1px solid #334155; padding:14px; text-align:center; border-radius:12px; cursor:pointer; }
+  .key.op{ background:linear-gradient(180deg, #172554, #0b1220); }
+  .key.equals{ background: linear-gradient(180deg, #1b4332, #0b3a2a); border-color:#14532d; font-weight:700; }
+  .key.wide{ grid-column: span 2; }
+
+  .status{ display:flex; gap:8px; flex-wrap:wrap; font-size:14px; color:var(--muted); }
+  .status .ok{ color: var(--accent); }
+  .status .ng{ color: var(--danger); }
+
+  .result-toast{ position:fixed; right:16px; bottom:16px; background:#020617; border:1px solid #334155; padding:12px 16px; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.35); display:none; }
+
+  .end{ text-align:center; padding:24px 12px; display:none; }
+  .end h2{ margin:0 0 8px; }
+
+  @media (max-width: 900px){
+    main{ flex-direction:column; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>電卓レクチャー・20問チャレンジ</h1>
+    <div class="meta">
+      <span class="pill">正解 <b id="score">0</b> / 20</span>
+      <span class="pill">経過 <b id="elapsed">00:00</b></span>
+      <span class="pill">ベスト <b id="best">--:--</b></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="left">
+      <div class="card problem-area">
+        <div class="progress">
+          <div class="bar"><span id="barFill"></span></div>
+          <div id="qIndex">1 / 20</div>
+        </div>
+        <div class="problem-text" id="problemText">読み込み中…</div>
+        <div class="hint" id="hint">ヒント：式を電卓で作って「=」を押そう。</div>
+        <div class="status" id="status"></div>
+        <div class="buttons">
+          <div class="btn primary" id="btnSkip">スキップ（-10秒）</div>
+          <div class="btn" id="btnShowHint">ヒントを表示</div>
+          <div class="btn ghost" id="btnReset">リセット</div>
+        </div>
+      </div>
+
+      <div class="end card" id="endPane">
+        <h2>お疲れさま！20問クリア</h2>
+        <p id="endSummary"></p>
+        <div class="buttons" style="justify-content:center;">
+          <div class="btn primary" id="btnRestart">もう一度</div>
+          <div class="btn" id="btnReview">最後の問題を復習</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="right">
+      <div class="card calc">
+        <div class="display">
+          <div class="expr" id="expr"></div>
+          <div class="value" id="value">0</div>
+        </div>
+        <div class="keys" id="keys">
+          <!-- 1行目 -->
+          <div class="key" data-k="AC">AC</div>
+          <div class="key" data-k="BS">⌫</div>
+          <div class="key" data-k="(">(</div>
+          <div class="key" data-k=")">)</div>
+          <!-- 2行目 -->
+          <div class="key" data-k="7">7</div>
+          <div class="key" data-k="8">8</div>
+          <div class="key" data-k="9">9</div>
+          <div class="key op" data-k="÷">÷</div>
+          <!-- 3行目 -->
+          <div class="key" data-k="4">4</div>
+          <div class="key" data-k="5">5</div>
+          <div class="key" data-k="6">6</div>
+          <div class="key op" data-k="×">×</div>
+          <!-- 4行目 -->
+          <div class="key" data-k="1">1</div>
+          <div class="key" data-k="2">2</div>
+          <div class="key" data-k="3">3</div>
+          <div class="key op" data-k="-">−</div>
+          <!-- 5行目 -->
+          <div class="key wide" data-k="0">0</div>
+          <div class="key" data-k=",">,</div>
+          <div class="key op" data-k="+">＋</div>
+          <!-- 6行目 -->
+          <div class="key" data-k=".">.</div>
+          <div class="key" data-k="00">00</div>
+          <div class="key" data-k="000">000</div>
+          <div class="key equals" data-k="=">＝</div>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:8px;">※ 電卓の式に <code>× ÷ ＋ − ( ) .</code> を使えます。<br>※ <code>,</code> は桁区切りで入力されます（演算には影響しません）。</div>
+    </section>
+  </main>
+
+  <div class="result-toast" id="toast"></div>
+
+<script>
+(() => {
+  // ===== Utility =====
+  const $ = (sel) => document.querySelector(sel);
+  const pad = (n) => String(n).padStart(2, '0');
+  const nice = (num) => {
+    if (!isFinite(num)) return String(num);
+    // Show integer without decimals when close to integer
+    if (Math.abs(num - Math.round(num)) < 1e-9) return Math.round(num).toLocaleString();
+    return Number(num.toFixed(8)).toLocaleString();
+  };
+  const sanitizeExprForEval = (s) => {
+    // remove commas and full-width commas
+    s = s.replace(/[,，]/g, '');
+    // allow only digits, operators, parentheses, dot
+    if (!/^[-+*/().\d\s×÷]+$/.test(s)) return null;
+    return s.replace(/×/g, '*').replace(/÷/g, '/');
+  };
+
+  // ===== State =====
+  let expr = '';
+  let display = '0';
+  let answer = 0;      // current problem answer (number)
+  let hint = '';
+  let q = 1;           // 1..20
+  let score = 0;       // correct count
+  let running = true;  // timer running
+  let startAt = Date.now();
+  let penalty = 0;     // seconds added via skip
+  let lastProblem = null; // for review
+
+  // ===== Elements =====
+  const exprEl = $('#expr');
+  const valEl = $('#value');
+  const problemEl = $('#problemText');
+  const hintEl = $('#hint');
+  const statusEl = $('#status');
+  const scoreEl = $('#score');
+  const elapsedEl = $('#elapsed');
+  const bestEl = $('#best');
+  const barFill = $('#barFill');
+  const qIndex = $('#qIndex');
+  const toast = $('#toast');
+  const endPane = $('#endPane');
+
+  // ===== Timer =====
+  const loadBest = () => localStorage.getItem('calc20_best') || '';
+  const saveBest = (s) => localStorage.setItem('calc20_best', s);
+  const toMMSS = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${pad(m)}:${pad(s)}`;
+  };
+  const tick = () => {
+    if (!running) return;
+    const t = (Date.now() - startAt) / 1000 + penalty;
+    elapsedEl.textContent = toMMSS(t);
+    requestAnimationFrame(tick);
+  };
+  const setBestUI = () => {
+    const b = loadBest();
+    bestEl.textContent = b || '--:--';
+  };
+
+  // ===== Problems =====
+  function generateProblem(){
+    // several templates (keep numbers friendly)
+    const R = (min, max) => Math.floor(Math.random()*(max-min+1))+min;
+    const choice = (arr) => arr[Math.floor(Math.random()*arr.length)];
+
+    const types = [
+  // 時給 → 年収
+  () => {
+    const wage = choice([900, 1000, 1100, 1164, 1200, 1300, 1500]);
+    const hours = choice([6, 7, 8]);
+    const days = choice([18, 20, 22]);
+    return {
+      text: `時給${wage}円で1日${hours}時間、月${days}日働いた場合の年収は？（12か月分）`,
+      ans: wage * hours * days * 12,
+      hint: `時給 × 時間 × 日数 × 12`
+    };
+  },
+  // 割引計算
+  () => {
+    const price = choice([1200, 2400, 4500, 9800, 15000]);
+    const off = choice([10, 15, 20, 25, 30]);
+    return {
+      text: `定価${price}円の商品が${off}%引き。支払額は？`,
+      ans: price * (1 - off / 100),
+      hint: `価格 × (1 − 割引率)`
+    };
+  },
+  // 増加率
+  () => {
+    const base = choice([8000, 12000, 30000, 50000]);
+    const up = choice([5, 8, 12, 15]);
+    return {
+      text: `${base}円が${up}%値上げ。新価格は？`,
+      ans: base * (1 + up / 100),
+      hint: `元値 × (1 + 率)`
+    };
+  },
+  // 速さ×時間
+  () => {
+    const v = choice([40, 50, 60, 80]);
+    const t = choice([1.5, 2, 2.5, 3]);
+    return {
+      text: `時速${v}kmで${t}時間走ると何km？`,
+      ans: v * t,
+      hint: `速さ × 時間`
+    };
+  },
+  // 長方形の面積
+  () => {
+    const w = choice([8, 12, 15, 20]);
+    const h = choice([5, 9, 10, 12]);
+    return {
+      text: `長方形 縦${h}cm × 横${w}cm の面積は？ (cm²)`,
+      ans: w * h,
+      hint: `縦 × 横`
+    };
+  },
+  // 毎月積立
+  () => {
+    const m = choice([3000, 5000, 8000, 12000]);
+    const months = choice([6, 12, 24, 36]);
+    return {
+      text: `毎月${m}円を${months}か月積み立て。合計は？`,
+      ans: m * months,
+      hint: `毎月の額 × 月数`
+    };
+  },
+  // 単価×個数
+  () => {
+    const unit = choice([120, 180, 200, 350, 480]);
+    const n = choice([12, 24, 36, 48, 60]);
+    return {
+      text: `単価${unit}円の商品を${n}個購入。合計は？`,
+      ans: unit * n,
+      hint: `単価 × 個数`
+    };
+  },
+  // 消費税計算
+  () => {
+    const price = choice([500, 1200, 3200, 7800]);
+    const rate = 10;
+    return {
+      text: `${price}円の商品（税込${rate}%）の支払額は？`,
+      ans: price * (1 + rate / 100),
+      hint: `価格 × (1 + 税率)`
+    };
+  },
+  // 円の面積
+  () => {
+    const r = choice([3, 5, 7, 10]);
+    return {
+      text: `半径${r}cmの円の面積は？（π=3.14で計算）`,
+      ans: 3.14 * r * r,
+      hint: `π × r²`
+    };
+  },
+  // 三角形の面積
+  () => {
+    const b = choice([6, 8, 10, 12]);
+    const h = choice([4, 5, 7, 9]);
+    return {
+      text: `底辺${b}cm、高さ${h}cmの三角形の面積は？`,
+      ans: b * h / 2,
+      hint: `(底辺 × 高さ) ÷ 2`
+    };
+  },
+  // 単利計算
+  () => {
+    const principal = choice([100000, 200000, 500000]);
+    const rate = choice([2, 3, 4]);
+    const years = choice([1, 2, 3, 5]);
+    return {
+      text: `${principal}円を年利${rate}%で${years}年預けた利息は？（単利）`,
+      ans: principal * rate / 100 * years,
+      hint: `元本 × 利率 × 年数`
+    };
+  },
+  // 割合の逆算
+  () => {
+    const total = choice([200, 400, 600]);
+    const part = choice([20, 40, 60, 80]);
+    return {
+      text: `${total}のうち${part}は全体の何%？`,
+      ans: part / total * 100,
+      hint: `(部分 ÷ 全体) × 100`
+    };
+  },
+  // 距離÷速さ＝時間
+  () => {
+    const dist = choice([100, 120, 150]);
+    const v = choice([40, 50, 60]);
+    return {
+      text: `${dist}kmを時速${v}kmで走ると何時間かかる？`,
+      ans: dist / v,
+      hint: `距離 ÷ 速さ`
+    };
+  },
+  // 逆数計算
+  () => {
+    const n = choice([2, 4, 5, 10]);
+    return {
+      text: `${n}の逆数は？`,
+      ans: 1 / n,
+      hint: `1 ÷ 数`
+    };
+  }
+];
+
+
+    const t = choice(types);
+    return t();
+  }
+
+  function setProblem(p){
+    lastProblem = p;
+    problemEl.textContent = p.text;
+    hintEl.textContent = 'ヒント：' + p.hint + '（右の電卓で式を作って「＝」）';
+    answer = p.ans;
+    statusEl.innerHTML = '';
+    qIndex.textContent = `${q} / 20`;
+    barFill.style.width = `${(q-1)/20*100}%`;
+    clearAll();
+  }
+
+  // ===== Calculator Behavior =====
+  function render(){
+    // 表示中の値も式にプレビューとして連結（直近が演算子/開き括弧などのとき）
+    const pending = (display !== '0') ? display.replace(/[,，]/g, '') : '';
+    // 末尾が数字や閉じ括弧で、さらに pending がある場合はスペース区切りで見やすく
+    let preview = expr;
+    if (pending){
+      if (/([0-9)]|\.)$/.test(preview)) preview += ' ' + pending; else preview += pending;
+    }
+    exprEl.textContent = preview;
+    valEl.textContent = display;
+  }
+  function clearAll(){ expr = ''; display='0'; render(); }
+  function backspace(){
+    if (display.length > 1) display = display.slice(0, -1); else display = '0';
+    render();
+  }
+  function appendDigit(d){
+    if (d === ','){
+      // pretty format current display
+      const raw = display.replace(/[,，]/g, '');
+      const asNum = raw.replace(/[^\d.\-]/g, '');
+      const f = asNum.includes('.') ? Number(asNum).toLocaleString() : Number(asNum).toLocaleString();
+      display = isNaN(Number(asNum)) ? display : f;
+      render();
+      return;
+    }
+    if (display === '0' && d !== '.' && d !== '00' && d !== '000') display = '';
+    if (d === '00' || d==='000') display += d;
+    else display += d;
+    render();
+  }
+  function pushOp(op){
+    const n = display.replace(/[,，]/g, '');
+    const endsWithOp = /[+\-×÷]$/.test(expr);
+
+    if (endsWithOp){
+      if (display !== '0'){
+        // 直前までに数字を入力していた → その数字を確定してから次の演算子
+        expr += n + op;
+      }else{
+        // 数字入力なしで演算子を連続で押した → 演算子を置換
+        expr = expr.slice(0, -1) + op;
+      }
+    }else{
+      // 通常：現在の数値を式に追加して演算子
+      expr += (expr ? '' : '') + n + op;
+    }
+    display = '0';
+    render();
+  }
+  function pushParen(p){
+    if (p==='('){ expr += '('; }
+    else{
+      // close: append current number if just typed
+      if (display !== '0'){ expr += display.replace(/[,，]/g, ''); display='0'; }
+      expr += ')';
+    }
+    render();
+  }
+  function evaluateExpr(){
+    // append pending number
+    let e = expr;
+    if (display !== '0') e += display.replace(/[,，]/g, '');
+    const safe = sanitizeExprForEval(e.trim());
+    if (safe == null || safe === ''){ shake('式が正しくありません'); return; }
+    try{
+      const val = Function(`"use strict"; return (${safe})`)();
+      const num = Number(val);
+      if (!isFinite(num)) throw new Error('NaN');
+      expr = e; display = nice(num);
+      render();
+      checkAnswer(num);
+    }catch(err){
+      shake('計算エラー：式を見直してください');
+    }
+  }
+
+  function showToast(msg, kind='info'){
+    toast.textContent = msg;
+    toast.style.display = 'block';
+    toast.style.borderColor = kind==='ok'? '#14532d' : (kind==='warn'? '#78350f' : '#334155');
+    toast.style.opacity = '1';
+    setTimeout(()=>{ toast.style.opacity='0'; setTimeout(()=> toast.style.display='none', 400); }, 1200);
+  }
+  function shake(msg){
+    statusEl.innerHTML = `<span class="ng">${msg}</span>`;
+  }
+  function cheer(msg){
+    statusEl.innerHTML = `<span class="ok">${msg}</span>`;
+  }
+
+  function checkAnswer(val){
+    const target = answer;
+    const tol = 1e-2; // allow small float error
+    if (Math.abs(val - target) <= tol || Math.abs(Math.round(val) - target) <= tol){
+      score++; scoreEl.textContent = score;
+      cheer('正解！次の問題へ');
+      showToast('正解！', 'ok');
+      q++;
+      if (q > 20){ finish(); return; }
+      setTimeout(()=> setProblem(generateProblem()), 300);
+    }else{
+      shake('値が違います…もう一度');
+    }
+  }
+
+  function finish(){
+    running = false;
+    const t = (Date.now() - startAt) / 1000 + penalty;
+    const cur = toMMSS(t);
+    const best = loadBest();
+    if (!best || toSecs(cur) < toSecs(best)) {
+      saveBest(cur);
+    }
+    setBestUI();
+    endPane.style.display = 'block';
+    $('#endSummary').textContent = `タイム：${cur}（ペナルティ込み ${penalty|0}秒）  正答：${score}/20`;
+    showToast('コンプリート！おめでとう！', 'ok');
+  }
+  const toSecs = (mmss) => {
+    const [m,s] = mmss.split(':').map(Number); return m*60+s;
+  };
+
+  // ===== Event Bindings =====
+  $('#keys').addEventListener('click', (e)=>{
+    const k = e.target.closest('.key')?.dataset.k; if (!k) return;
+    if (k === 'AC'){ clearAll(); statusEl.innerHTML=''; return; }
+    if (k === 'BS'){ backspace(); return; }
+    if (k === '='){ evaluateExpr(); return; }
+    if (k === '(' || k === ')'){ pushParen(k); return; }
+    if (['+','-','×','÷'].includes(k)){ pushOp(k); return; }
+    // digits or dot or 00/000 or comma
+    appendDigit(k);
+  });
+
+  // Keyboard support
+  window.addEventListener('keydown', (ev)=>{
+    const map = { '/':'÷', '*':'×', '+':'+', '-':'-', 'Enter':'=', '=':'=' };
+    if (/^[0-9.]$/.test(ev.key)){ appendDigit(ev.key); ev.preventDefault(); }
+    else if (map[ev.key]){ (map[ev.key]==='='? evaluateExpr(): pushOp(map[ev.key])); ev.preventDefault(); }
+    else if (ev.key==='Backspace'){ backspace(); ev.preventDefault(); }
+    else if (ev.key==='(' || ev.key===')'){ pushParen(ev.key); ev.preventDefault(); }
+  });
+
+  $('#btnReset').addEventListener('click', ()=>{ clearAll(); showToast('電卓をリセット'); });
+  $('#btnShowHint').addEventListener('click', ()=>{ showToast(hintEl.textContent, 'warn'); });
+  $('#btnSkip').addEventListener('click', ()=>{
+    penalty += 10; // add 10s
+    showToast('スキップ：+10秒', 'warn');
+    setProblem(generateProblem());
+  });
+  $('#btnRestart').addEventListener('click', ()=>{ startGame(); });
+  $('#btnReview').addEventListener('click', ()=>{
+    endPane.style.display='none';
+    if (lastProblem){ q = Math.min(20, q); setProblem(lastProblem); }
+  });
+
+  function startGame(){
+    // reset all
+    score = 0; q = 1; penalty = 0; running = true; startAt = Date.now();
+    scoreEl.textContent = '0';
+    barFill.style.width = '0%';
+    endPane.style.display='none';
+    setProblem(generateProblem());
+    requestAnimationFrame(tick);
+  }
+
+  // init
+  setBestUI();
+  startGame();
+})();
+</script>
+</body>
+</html>
